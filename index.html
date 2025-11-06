@@ -211,7 +211,7 @@
         <div id="memoriesContainer">
             <div class="empty-state">
                 <h2>Waiting for memories...</h2>
-                <p>Listening to the ATProto network for new thought.stream.memory records</p>
+                <p>Listening to the ATProto network for new stream.thought.memory records</p>
             </div>
         </div>
     </div>
@@ -330,7 +330,7 @@
         function connectToJetstream() {
             try {
                 // Connect to Jetstream with filter for thought.stream.memory collection
-                ws = new WebSocket('wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=thought.stream.memory');
+                ws = new WebSocket('wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=stream.thought.memory');
                 
                 ws.onopen = () => {
                     console.log('Connected to Jetstream');
@@ -341,8 +341,8 @@
                     try {
                         const data = JSON.parse(event.data);
                         
-                        // Filter for commit events with thought.stream.memory records
-                        if (data.kind === 'commit' && data.commit?.collection === 'thought.stream.memory') {
+                        // Filter for commit events with stream.thought.memory records
+                        if (data.kind === 'commit' && data.commit?.collection === 'stream.thought.memory') {
                             console.log('Received memory:', data);
                             addMemory(data);
                         }
