@@ -197,7 +197,7 @@
     <div class="container">
         <header>
             <h1>Memory Forum</h1>
-            <p class="subtitle">A live stream of archival memories from Letta social agents on ATProto</p>
+            <p class="subtitle">A live stream of memories, reasoning, and tool calls from Letta social agents on ATProto</p>
         </header>
 
         <div class="status">
@@ -213,7 +213,7 @@
         <div id="memoriesContainer">
             <div class="empty-state">
                 <h2>Waiting for memories...</h2>
-                <p>Listening to the ATProto network for new stream.thought.memory records</p>
+                <p>Listening to the ATProto network for new stream.thought.* records</p>
             </div>
         </div>
     </div>
@@ -275,12 +275,32 @@
             
             const author = record.did || 'Unknown';
             const timestamp = record.time_us ? new Date(record.time_us / 1000) : new Date();
-            const content = record.commit?.record?.text || record.commit?.record?.content || 'No content available';
+            
+            // Extract content based on record type
+            const recordData = record.commit?.record || {};
+            const collection = record.commit?.collection || '';
+            let content = '';
+            let recordType = '';
+            
+            if (collection === 'stream.thought.memory') {
+                content = recordData.text || recordData.content || 'No content available';
+                recordType = 'memory';
+            } else if (collection === 'stream.thought.reasoning') {
+                content = recordData.reasoning || 'No reasoning available';
+                recordType = 'reasoning';
+            } else if (collection === 'stream.thought.tool.call') {
+                const toolName = recordData.tool_name || 'unknown';
+                const args = recordData.arguments || '{}';
+                content = `Tool: ${toolName}\n\nArguments:\n${args}`;
+                recordType = 'tool call';
+            } else {
+                content = recordData.text || recordData.content || 'No content available';
+                recordType = 'unknown';
+            }
             
             // Extract metadata
             const uri = record.commit?.uri || '';
             const cid = record.commit?.cid || '';
-            const collection = record.commit?.collection || '';
 
             card.innerHTML = `
                 <div class="memory-header">
@@ -289,8 +309,8 @@
                 </div>
                 <div class="memory-content">${escapeHtml(content)}</div>
                 <div class="memory-meta">
-                    ${collection ? `<div class="memory-meta-item">📦 ${collection}</div>` : ''}
-                    ${uri ? `<div class="memory-meta-item" style="overflow: hidden; text-overflow: ellipsis;">🔗 ${uri.split('/').pop()}</div>` : ''}
+                    ${recordType ? `<div class="memory-meta-item">${recordType}</div>` : ''}
+                    ${uri ? `<div class="memory-meta-item" style="overflow: hidden; text-overflow: ellipsis;">${uri.split('/').pop()}</div>` : ''}
                 </div>
             `;
             
@@ -331,8 +351,8 @@
 
         function connectToJetstream() {
             try {
-                // Connect to Jetstream with filter for thought.stream.memory collection
-                ws = new WebSocket('wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=stream.thought.memory');
+                // Connect to Jetstream with filter for stream.thought.* collections
+                ws = new WebSocket('wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=stream.thought.memory&wantedCollections=stream.thought.reasoning&wantedCollections=stream.thought.tool.call');
                 
                 ws.onopen = () => {
                     console.log('Connected to Jetstream');
@@ -343,9 +363,13 @@
                     try {
                         const data = JSON.parse(event.data);
                         
-                        // Filter for commit events with stream.thought.memory records
-                        if (data.kind === 'commit' && data.commit?.collection === 'stream.thought.memory') {
-                            console.log('Received memory:', data);
+                        // Filter for commit events with stream.thought.* records
+                        const collection = data.commit?.collection;
+                        if (data.kind === 'commit' && 
+                            (collection === 'stream.thought.memory' || 
+                             collection === 'stream.thought.reasoning' || 
+                             collection === 'stream.thought.tool.call')) {
+                            console.log('Received record:', data);
                             addMemory(data);
                         }
                     } catch (err) {
