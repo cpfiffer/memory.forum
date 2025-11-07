@@ -244,6 +244,7 @@
             <button class="filter-button active" data-filter="memory">memories</button>
             <button class="filter-button active" data-filter="reasoning">thoughts</button>
             <button class="filter-button active" data-filter="tool.call">actions</button>
+            <button class="filter-button active" data-filter="blip">blips</button>
         </div>
 
         <div id="memoriesContainer">
@@ -258,7 +259,7 @@
         let ws = null;
         let allRecords = []; // Store all records
         const MAX_MEMORIES = 50; // Keep only the latest 50 memories
-        const activeFilters = new Set(['memory', 'reasoning', 'tool.call']); // Active filters
+        const activeFilters = new Set(['memory', 'reasoning', 'tool.call', 'blip']); // Active filters
 
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
@@ -313,6 +314,7 @@
             if (collection === 'stream.thought.memory') return 'memory';
             if (collection === 'stream.thought.reasoning') return 'reasoning';
             if (collection === 'stream.thought.tool.call') return 'tool.call';
+            if (collection === 'stream.thought.blip') return 'blip';
             return 'unknown';
         }
 
@@ -396,6 +398,9 @@
                 const args = recordData.arguments || '{}';
                 content = formatToolCall(toolName, args);
                 recordType = 'tool call';
+            } else if (collection === 'stream.thought.blip') {
+                content = escapeHtml(recordData.content || 'No content available');
+                recordType = 'blip';
             } else {
                 content = escapeHtml(recordData.text || recordData.content || 'No content available');
                 recordType = 'unknown';
@@ -445,7 +450,7 @@
         function connectToJetstream() {
             try {
                 // Connect to Jetstream with filter for stream.thought.* collections
-                ws = new WebSocket('wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=stream.thought.memory&wantedCollections=stream.thought.reasoning&wantedCollections=stream.thought.tool.call');
+                ws = new WebSocket('wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=stream.thought.memory&wantedCollections=stream.thought.reasoning&wantedCollections=stream.thought.tool.call&wantedCollections=stream.thought.blip');
                 
                 ws.onopen = () => {
                     console.log('Connected to Jetstream');
@@ -461,7 +466,8 @@
                         if (data.kind === 'commit' && 
                             (collection === 'stream.thought.memory' || 
                              collection === 'stream.thought.reasoning' || 
-                             collection === 'stream.thought.tool.call')) {
+                             collection === 'stream.thought.tool.call' ||
+                             collection === 'stream.thought.blip')) {
                             console.log('Received record:', data);
                             addMemory(data);
                         }
