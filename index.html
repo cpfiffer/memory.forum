@@ -182,6 +182,36 @@
             font-style: italic;
         }
 
+        .filters {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e0ddd8;
+        }
+
+        .filter-button {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            background: transparent;
+            border: 1px solid #d0ccc7;
+            color: #666;
+            padding: 6px 16px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-button:hover {
+            border-color: #999;
+            color: #2a2a2a;
+        }
+
+        .filter-button.active {
+            background: #2a2a2a;
+            color: #f5f3f0;
+            border-color: #2a2a2a;
+        }
+
         @media (max-width: 768px) {
             h1 {
                 font-size: 2em;
@@ -210,6 +240,12 @@
 
         <div id="errorContainer"></div>
 
+        <div class="filters">
+            <button class="filter-button active" data-filter="memory">memories</button>
+            <button class="filter-button active" data-filter="reasoning">thoughts</button>
+            <button class="filter-button active" data-filter="tool.call">actions</button>
+        </div>
+
         <div id="memoriesContainer">
             <div class="empty-state">
                 <h2>Waiting for memories...</h2>
@@ -220,14 +256,16 @@
 
     <script>
         let ws = null;
-        let memoryCount = 0;
+        let allRecords = []; // Store all records
         const MAX_MEMORIES = 50; // Keep only the latest 50 memories
+        const activeFilters = new Set(['memory', 'reasoning', 'tool.call']); // Active filters
 
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
         const memoryCountEl = document.getElementById('memoryCount');
         const memoriesContainer = document.getElementById('memoriesContainer');
         const errorContainer = document.getElementById('errorContainer');
+        const filterButtons = document.querySelectorAll('.filter-button');
 
         function formatTimestamp(timestamp) {
             const date = new Date(timestamp);
@@ -266,7 +304,43 @@
         }
 
         function updateMemoryCount() {
-            memoryCountEl.textContent = `${memoryCount} ${memoryCount === 1 ? 'memory' : 'memories'}`;
+            const visibleCount = memoriesContainer.querySelectorAll('.memory-card').length;
+            memoryCountEl.textContent = `${visibleCount} records`;
+        }
+
+        function getRecordType(record) {
+            const collection = record.commit?.collection || '';
+            if (collection === 'stream.thought.memory') return 'memory';
+            if (collection === 'stream.thought.reasoning') return 'reasoning';
+            if (collection === 'stream.thought.tool.call') return 'tool.call';
+            return 'unknown';
+        }
+
+        function shouldShowRecord(record) {
+            const recordType = getRecordType(record);
+            return activeFilters.has(recordType);
+        }
+
+        function renderAllRecords() {
+            memoriesContainer.innerHTML = '';
+            
+            const recordsToShow = allRecords.filter(shouldShowRecord);
+            
+            if (recordsToShow.length === 0) {
+                memoriesContainer.innerHTML = `
+                    <div class="empty-state">
+                        <h2>No records match filters</h2>
+                        <p>Toggle filters to see different record types</p>
+                    </div>
+                `;
+            } else {
+                for (const record of recordsToShow) {
+                    const card = createMemoryCard(record);
+                    memoriesContainer.appendChild(card);
+                }
+            }
+            
+            updateMemoryCount();
         }
 
         function formatToolCall(toolName, argsString) {
@@ -356,26 +430,16 @@
         }
 
         function addMemory(record) {
-            // Remove empty state if it exists
-            const emptyState = memoriesContainer.querySelector('.empty-state');
-            if (emptyState) {
-                memoriesContainer.innerHTML = '';
-            }
-
-            // Add new memory at the top
-            const card = createMemoryCard(record);
-            memoriesContainer.insertBefore(card, memoriesContainer.firstChild);
+            // Add to stored records
+            allRecords.unshift(record);
             
-            memoryCount++;
-            updateMemoryCount();
-
-            // Remove oldest memories if we exceed the limit
-            const cards = memoriesContainer.querySelectorAll('.memory-card');
-            if (cards.length > MAX_MEMORIES) {
-                for (let i = MAX_MEMORIES; i < cards.length; i++) {
-                    cards[i].remove();
-                }
+            // Keep only the latest MAX_MEMORIES
+            if (allRecords.length > MAX_MEMORIES) {
+                allRecords.length = MAX_MEMORIES;
             }
+            
+            // Re-render with current filters
+            renderAllRecords();
         }
 
         function connectToJetstream() {
@@ -428,6 +492,23 @@
                 setTimeout(connectToJetstream, 5000);
             }
         }
+
+        // Filter button handlers
+        filterButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const filterType = button.dataset.filter;
+                
+                if (activeFilters.has(filterType)) {
+                    activeFilters.delete(filterType);
+                    button.classList.remove('active');
+                } else {
+                    activeFilters.add(filterType);
+                    button.classList.add('active');
+                }
+                
+                renderAllRecords();
+            });
+        });
 
         // Start connection when page loads
         connectToJetstream();
