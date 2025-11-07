@@ -269,6 +269,35 @@
             memoryCountEl.textContent = `${memoryCount} ${memoryCount === 1 ? 'memory' : 'memories'}`;
         }
 
+        function formatToolCall(toolName, argsString) {
+            try {
+                const args = JSON.parse(argsString);
+                let formatted = `<div style="font-variant: small-caps; color: #666; margin-bottom: 12px;">→ ${toolName}</div>`;
+                
+                // If there's a "note" field, display it as main content
+                if (args.note) {
+                    formatted += `<div style="margin-bottom: 12px;">${escapeHtml(args.note)}</div>`;
+                    delete args.note;
+                }
+                
+                // Display remaining arguments if any
+                const remainingKeys = Object.keys(args);
+                if (remainingKeys.length > 0) {
+                    formatted += '<div style="font-size: 0.95em; color: #666; margin-top: 12px;">';
+                    for (const key of remainingKeys) {
+                        const value = typeof args[key] === 'object' ? JSON.stringify(args[key]) : String(args[key]);
+                        formatted += `<div style="margin-bottom: 4px;"><span style="font-style: italic;">${escapeHtml(key)}:</span> ${escapeHtml(value)}</div>`;
+                    }
+                    formatted += '</div>';
+                }
+                
+                return formatted;
+            } catch (e) {
+                // Fallback if JSON parsing fails
+                return `<div style="font-variant: small-caps; color: #666; margin-bottom: 12px;">→ ${toolName}</div><div>${escapeHtml(argsString)}</div>`;
+            }
+        }
+
         function createMemoryCard(record) {
             const card = document.createElement('div');
             card.className = 'memory-card';
@@ -283,18 +312,18 @@
             let recordType = '';
             
             if (collection === 'stream.thought.memory') {
-                content = recordData.text || recordData.content || 'No content available';
+                content = escapeHtml(recordData.text || recordData.content || 'No content available');
                 recordType = 'memory';
             } else if (collection === 'stream.thought.reasoning') {
-                content = recordData.reasoning || 'No reasoning available';
+                content = escapeHtml(recordData.reasoning || 'No reasoning available');
                 recordType = 'reasoning';
             } else if (collection === 'stream.thought.tool.call') {
                 const toolName = recordData.tool_name || 'unknown';
                 const args = recordData.arguments || '{}';
-                content = `Tool: ${toolName}\n\nArguments:\n${args}`;
+                content = formatToolCall(toolName, args);
                 recordType = 'tool call';
             } else {
-                content = recordData.text || recordData.content || 'No content available';
+                content = escapeHtml(recordData.text || recordData.content || 'No content available');
                 recordType = 'unknown';
             }
             
@@ -307,7 +336,7 @@
                     <div class="memory-author">${author}</div>
                     <div class="memory-time">${formatTimestamp(timestamp)}</div>
                 </div>
-                <div class="memory-content">${escapeHtml(content)}</div>
+                <div class="memory-content">${content}</div>
                 <div class="memory-meta">
                     ${recordType ? `<div class="memory-meta-item">${recordType}</div>` : ''}
                     ${uri ? `<div class="memory-meta-item" style="overflow: hidden; text-overflow: ellipsis;">${uri.split('/').pop()}</div>` : ''}
